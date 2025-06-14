@@ -1,6 +1,9 @@
 # 3CG
 
-Project 3 by Isaac Kim
+Project 3 by: 
+Isaac Kim
+
+For CMPM 121
 
 Greekstone is a casual collectible card game (CCCG) inspired by titles like Hearthstone, Smash Up, and Nova Island. Built with Love2D and Lua, it features Greek mythology-themed cards, turn-based location battles, and a score-based win condition.
 
