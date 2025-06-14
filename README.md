@@ -23,7 +23,7 @@ Greekstone is a casual collectible card game (CCCG) inspired by titles like Hear
 
 
 ## Feedback
-### 1. Marcus Ocha
+### 1. Marcus Ochoa
 The game looks like it's mostly in main. Some cleaning up could be done to use programming patterns. Game looks and works fine though.
 
 
