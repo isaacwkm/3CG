@@ -1,8 +1,8 @@
 # 3CG
 
-Greekstone is a casual collectible card game (CCCG) inspired by titles like Hearthstone, Smash Up, and Nova Island. Built with Love2D and Lua, it features Greek mythology-themed cards, turn-based location battles, and a score-based win condition.
+Project 3 by Isaac Kim
 
----
+Greekstone is a casual collectible card game (CCCG) inspired by titles like Hearthstone, Smash Up, and Nova Island. Built with Love2D and Lua, it features Greek mythology-themed cards, turn-based location battles, and a score-based win condition.
 
 ## Programming Patterns Used
 
@@ -18,16 +18,14 @@ Greekstone is a casual collectible card game (CCCG) inspired by titles like Hear
 - The game uses a gamePhase state (like "play", "resolving", "gameover") to manage turn flow and phase transitions.
 - Prevents interactions from running out of order or across invalid states.
 
----
 
 ## Feedback & Architecture Influence
 
 ### 1. Marcus Ochoa
 The game looks like it's mostly in main. Some cleaning up could be done to use programming patterns. Game looks and works fine though.
 
----
 
-## 🪞 Postmortem
+## Postmortem
 
 ### What Went Well
 - The card system and deck logic reused ideas from a prior solitaire project, speeding up core logic.
@@ -38,7 +36,6 @@ The game looks like it's mostly in main. Some cleaning up could be done to use p
 - Could benefit from an event dispatch system for card effects (like onReveal, endOfTurn).
 - Using a scene system might help organize game over, title, and gameplay screens later.
 
----
 
 ## Assets Used
 
