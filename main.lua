@@ -5,6 +5,8 @@ local Deck = require("deck")
 local Player = require("player")
 local UI = require("ui")
 local cardData = require("card_data")
+local CardEffects = require("card_effects")
+
 
 local player
 
@@ -13,18 +15,30 @@ local hoveredIndex = nil
 local draggingCard = nil
 local dragOffsetY = 0
 
+-- Board state: 3 locations, each with a player and AI side
 local locations = {
     { cards = {}, ai = {} },
     { cards = {}, ai = {} },
     { cards = {}, ai = {} }
 }
 
-local LOCATION_Y = 400
+-- Layout constants
 local LOCATION_WIDTH = 200
 local LOCATION_HEIGHT = 100
+local LOCATION_GAP = 20
+local LOCATION_BASE_Y = love.graphics.getHeight() - 180 -- vertical center for location boxes
+local AI_OFFSET_Y = -110
+local PLAYER_OFFSET_Y = 20
 
--- ai player set up stuff
+local playAgainButton = {
+    x = 550,
+    y = 540,
+    w = 300,
+    h = 50
+}
 
+
+-- AI player and turn state
 local aiPlayer = nil
 local turn = 1
 local maxPoints = 15
@@ -52,6 +66,20 @@ function buildDeck(cardPool, size)
     return deck
 end
 
+function startNextTurn()
+    turn = turn + 1
+    player.mana = turn
+    aiPlayer.mana = turn
+
+    player:drawCard()
+    aiPlayer:drawCard()
+
+    for _, loc in ipairs(locations) do
+        loc.cards = {}
+        loc.ai = {}
+    end
+end
+
 function love.load()
     love.graphics.setBackgroundColor(0.1, 0.1, 0.4) -- dark blue (RGB in 0–1 range)
 
@@ -61,8 +89,8 @@ function love.load()
     local aiDeck = Deck:new(buildDeck(cardData, 20))
     aiDeck:shuffle()
 
-    player = Player:new(playerDeck)
-    aiPlayer = Player:new(aiDeck)
+    player = Player:new(playerDeck)     -- regular player
+    aiPlayer = Player:new(aiDeck, true) -- AI player with isAI = true
 
     for _ = 1, 3 do
         player:drawCard()
@@ -90,23 +118,31 @@ function love.draw()
     for i, card in ipairs(player.hand) do
         local y = 30 + (i - 1) * 60
 
-        if i == hoveredIndex then
-            love.graphics.setColor(1, 1, 0.5) -- highlight
-        elseif card == selectedCard then
-            love.graphics.setColor(0.5, 1, 1) -- selected
+        -- Set background color based on affordability
+        if player.mana < card.cost then
+            love.graphics.setColor(0.3, 0.3, 0.4, 0.8) -- dark gray-blue
         else
-            love.graphics.setColor(1, 1, 1)   -- default
+            love.graphics.setColor(0.65, 0.58, 0.45)   -- parchment tan
         end
 
-        UI.drawText("Name: " .. card.name, 10, y)
-        UI.drawText("Cost: " .. card.cost .. "  Power: " .. card.power, 10, y + 15)
-        UI.drawText("Text: " .. card.text, 10, y + 30)
+        love.graphics.rectangle("fill", 10, y, 280, 50)
+
+        -- Border for card readability
+        love.graphics.setColor(0, 0, 0)
+        love.graphics.rectangle("line", 10, y, 280, 50)
+
+        -- Draw card text in off-white
+        love.graphics.setColor(0.95, 0.95, 0.95)
+        UI.drawText("Name: " .. card.name, 20, y + 5)
+        UI.drawText("Cost: " .. card.cost .. "  Power: " .. card.power, 20, y + 20)
     end
+
+
 
     -- Draw board locations
     for i, loc in ipairs(locations) do
         local lx = 50 + (i - 1) * (LOCATION_WIDTH + 20)
-        local ly = LOCATION_Y
+        local ly = LOCATION_BASE_Y
         love.graphics.setColor(0.3, 0.3, 0.3)
         love.graphics.rectangle("fill", lx, ly, LOCATION_WIDTH, LOCATION_HEIGHT)
 
@@ -131,7 +167,15 @@ function love.draw()
     love.graphics.setColor(0.2, 0.6, 1)
     love.graphics.rectangle("fill", submitButton.x, submitButton.y, submitButton.w, submitButton.h)
     love.graphics.setColor(1, 1, 1)
-    UI.drawText("Submit", submitButton.x + 40, submitButton.y + 15)
+    local buttonLabel = "Submit"
+    if gamePhase == "review" then
+        buttonLabel = "Next Turn"
+    elseif gamePhase == "end" then
+        buttonLabel = "Restart"
+    end
+
+    UI.drawText(buttonLabel, submitButton.x + 40, submitButton.y + 15)
+
 
     -- Draw Scores
     UI.drawText("Player Score: " .. playerScore, 1050, 20)
@@ -140,7 +184,7 @@ function love.draw()
     -- Draw AI cards
     for i, loc in ipairs(locations) do
         local lx = 50 + (i - 1) * (LOCATION_WIDTH + 20)
-        local ly = LOCATION_Y - 150
+        local ly = LOCATION_BASE_Y - 150
         love.graphics.setColor(0.15, 0.15, 0.15)
         love.graphics.rectangle("fill", lx, ly, LOCATION_WIDTH, LOCATION_HEIGHT)
 
@@ -159,29 +203,119 @@ function love.draw()
     UI.drawText("Mana: " .. player.mana, 600, 50)
     UI.drawText("Points to Win: " .. maxPoints, 600, 70)
 
+    if gamePhase == "gameover" then
+        local oldFont = love.graphics.getFont() -- save the current font
+        local bigFont = love.graphics.newFont(48)
+        love.graphics.setFont(bigFont)
 
+        local msg = "GAME OVER! FIRST TO 15 WINS!"
+        local textWidth = bigFont:getWidth(msg)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print(msg, (love.graphics.getWidth() - textWidth) / 2, love.graphics.getHeight() / 2 - 24)
+
+        love.graphics.setFont(oldFont) -- restore previous font
+
+        -- Draw the Play Again button
+        love.graphics.setColor(0.3, 0.6, 1.0)
+        love.graphics.rectangle("fill", playAgainButton.x, playAgainButton.y, playAgainButton.w, playAgainButton.h, 10,
+            10)
+        love.graphics.setColor(1, 1, 1)
+        UI.drawText("Play Again", playAgainButton.x + 90, playAgainButton.y + 15)
+    end
 
     love.graphics.setColor(1, 1, 1) -- reset draw color
 end
 
 function love.mousepressed(x, y, button)
+    if gamePhase == "gameover" then
+        if x >= playAgainButton.x and x <= playAgainButton.x + playAgainButton.w and
+            y >= playAgainButton.y and y <= playAgainButton.y + playAgainButton.h then
+            -- Clear location cards
+            for _, loc in ipairs(locations) do
+                loc.cards = {}
+                loc.ai = {}
+            end
+
+            -- Generate and shuffle new decks
+            local playerDeck = Deck:new(buildDeck(cardData, 20))
+            playerDeck:shuffle()
+
+            local aiDeck = Deck:new(buildDeck(cardData, 20))
+            aiDeck:shuffle()
+
+            -- Recreate players
+            player = Player:new(playerDeck)
+            aiPlayer = Player:new(aiDeck, true)
+
+            -- Initial hand draw
+            for _ = 1, 3 do
+                player:drawCard()
+                aiPlayer:drawCard()
+            end
+
+            -- Reset state
+            playerScore = 0
+            aiScore = 0
+            turn = 1
+            player.mana = turn
+            aiPlayer.mana = turn
+            gamePhase = "play"
+
+            return
+        end
+    end
+
+
+
+    -- Handle "Next Turn" click during review
+    if button == 1 and gamePhase == "review" then
+        if insideSubmitButton(x, y) then
+            startNextTurn() -- Draw cards, reset mana, clear boards, etc.
+            gamePhase = "play"
+        end
+        return
+    end
+
+    -- Handle card dragging
     if button == 1 and hoveredIndex then
         draggingCard = player.hand[hoveredIndex]
         selectedCard = draggingCard
         dragOffsetY = y - (30 + (hoveredIndex - 1) * 60)
     end
 
-    -- Check if clicking Submit button
+    -- Handle Submit Turn
     if gamePhase == "play" and x >= submitButton.x and x <= submitButton.x + submitButton.w and
         y >= submitButton.y and y <= submitButton.y + submitButton.h then
         gamePhase = "resolving"
 
-        -- AI randomly plays cards
+        -- AI randomly plays cards based on available mana
         for i = 1, 3 do
-            if #aiPlayer.hand > 0 and #locations[i].ai ~= 4 then
-                local cardIndex = love.math.random(#aiPlayer.hand)
-                local card = table.remove(aiPlayer.hand, cardIndex)
-                table.insert(locations[i].ai, card)
+            while #locations[i].ai < 4 and aiPlayer.mana > 0 and #aiPlayer.hand > 0 do
+                -- Pick a random playable card
+                local validCards = {}
+                for idx, card in ipairs(aiPlayer.hand) do
+                    if card.cost <= aiPlayer.mana then
+                        table.insert(validCards, { card = card, index = idx })
+                    end
+                end
+
+                if #validCards == 0 then break end
+
+                local pick = validCards[love.math.random(#validCards)]
+                table.insert(locations[i].ai, pick.card)
+                aiPlayer.mana = aiPlayer.mana - pick.card.cost
+                table.remove(aiPlayer.hand, pick.index)
+            end
+        end
+
+
+        -- Resolve all card effects
+        for i, loc in ipairs(locations) do
+            for _, card in ipairs(loc.cards) do
+                CardEffects.resolve(card, player, aiPlayer, i, locations)
+            end
+            for _, card in ipairs(loc.ai) do
+                CardEffects.resolve(card, aiPlayer, player, i, locations)
             end
         end
 
@@ -198,25 +332,22 @@ function love.mousepressed(x, y, button)
             end
         end
 
-        -- Check win
+        -- Remove discarded cards
+        for _, loc in ipairs(locations) do
+            for i = #loc.cards, 1, -1 do
+                if loc.cards[i]._discard then table.remove(loc.cards, i) end
+            end
+            for i = #loc.ai, 1, -1 do
+                if loc.ai[i]._discard then table.remove(loc.ai, i) end
+            end
+        end
+
+        -- Transition to review
+        gamePhase = "review"
+
+        -- If someone won, set final phase (but do not start next turn here)
         if playerScore >= maxPoints or aiScore >= maxPoints then
             gamePhase = "gameover"
-        else
-            -- Next turn
-            turn = turn + 1
-            player.mana = turn
-            aiPlayer.mana = turn
-
-            player:drawCard()
-            aiPlayer:drawCard()
-
-            -- Clear boards
-            for _, loc in ipairs(locations) do
-                loc.cards = {}
-                loc.ai = {}
-            end
-
-            gamePhase = "play"
         end
 
         return
@@ -227,20 +358,33 @@ function love.mousereleased(x, y, button)
     if button == 1 and draggingCard then
         for i, loc in ipairs(locations) do
             local lx = 50 + (i - 1) * (LOCATION_WIDTH + 20)
-            local ly = LOCATION_Y
+            local ly = LOCATION_BASE_Y
             if x >= lx and x <= lx + LOCATION_WIDTH and y >= ly and y <= ly + LOCATION_HEIGHT then
                 if #loc.cards < 4 then
-                    -- Add card to location and remove from hand
-                    table.insert(loc.cards, draggingCard)
-                    for h = #player.hand, 1, -1 do
-                        if player.hand[h] == draggingCard then
-                            table.remove(player.hand, h)
-                            break
+                    if player.mana >= draggingCard.cost then
+                        -- Play the card
+                        player.mana = player.mana - draggingCard.cost
+                        table.insert(loc.cards, draggingCard)
+
+                        -- Remove from hand
+                        for h = #player.hand, 1, -1 do
+                            if player.hand[h] == draggingCard then
+                                table.remove(player.hand, h)
+                                break
+                            end
                         end
+                    else
+                        -- Optional: Show error or feedback
+                        print("Not enough mana!")
                     end
                 end
             end
         end
         draggingCard = nil
     end
+end
+
+function insideSubmitButton(x, y)
+    return x >= submitButton.x and x <= submitButton.x + submitButton.w and
+        y >= submitButton.y and y <= submitButton.y + submitButton.h
 end
